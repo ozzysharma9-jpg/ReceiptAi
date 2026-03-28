@@ -120,7 +120,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
           Authorization: `Bearer ${GROK_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "grok-3",
+          model: "grok-3-mini",
           messages: [
             { role: "system", content: buildSystemPrompt() },
             ...historyForApi,
@@ -134,8 +134,13 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       const data = await res.json();
 
       if (!res.ok) {
-        const errMsg = data?.error?.message ?? `API error ${res.status}`;
-        throw new Error(errMsg);
+        const errDetail = data?.error ?? data?.message ?? "";
+        const errStr = typeof errDetail === "string" ? errDetail : JSON.stringify(errDetail);
+        // Credits / billing issue
+        if (res.status === 403 && errStr.toLowerCase().includes("credit")) {
+          throw new Error("NO_CREDITS");
+        }
+        throw new Error(errStr || `API error ${res.status}`);
       }
 
       const reply =
@@ -149,10 +154,13 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       };
       setMessages((prev) => [assistantMsg, ...prev]);
     } catch (e: any) {
+      const isNoCredits = e?.message === "NO_CREDITS";
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `Sorry, something went wrong: ${e?.message ?? "Please check your connection and try again."}`,
+        content: isNoCredits
+          ? "⚠️ Your xAI account has no credits yet.\n\nTo use the AI assistant, add credits at:\nconsole.x.ai → Billing\n\nOnce credits are added, the assistant will work instantly."
+          : `Sorry, something went wrong. Please check your connection and try again.`,
       };
       setMessages((prev) => [assistantMsg, ...prev]);
     } finally {
