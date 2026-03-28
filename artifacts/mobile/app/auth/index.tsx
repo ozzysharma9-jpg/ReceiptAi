@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -19,6 +19,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
+const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+
 export default function PhoneScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
@@ -26,40 +28,72 @@ export default function PhoneScreen() {
   const router = useRouter();
   const { sendOtp } = useAuth();
 
-  const [phone, setPhone] = useState("");
+  const [digits, setDigits] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const isValid = phone.replace(/\D/g, "").length >= 10;
+  const rawDigits = digits.replace(/\D/g, "").slice(0, 10);
+  const isValid = INDIAN_MOBILE_REGEX.test(rawDigits);
+
+  const shake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const formatDisplay = (raw: string) => {
+    const d = raw.slice(0, 10);
+    if (d.length <= 5) return d;
+    return `${d.slice(0, 5)} ${d.slice(5)}`;
+  };
+
+  const handleChangeText = (t: string) => {
+    const d = t.replace(/\D/g, "").slice(0, 10);
+    setDigits(d);
+    setError("");
+  };
 
   const handleSend = async () => {
-    if (!isValid) return;
+    if (!isValid) {
+      if (rawDigits.length === 10 && !/^[6-9]/.test(rawDigits)) {
+        setError("Indian mobile numbers must start with 6, 7, 8, or 9");
+      } else if (rawDigits.length < 10) {
+        setError("Please enter a valid 10-digit mobile number");
+      }
+      shake();
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      return;
+    }
+
     setLoading(true);
+    setError("");
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+
     try {
-      const otp = await sendOtp(phone.trim());
-      // For demo: show OTP in alert since we have no SMS backend
-      Alert.alert(
-        "OTP Sent",
-        `Your verification code is: ${otp}\n\n(In production, this would be sent via SMS)`,
-        [{ text: "OK", onPress: () => router.push({ pathname: "/auth/otp", params: { phone: phone.trim() } }) }]
-      );
+      const otp = await sendOtp(rawDigits);
+      // Navigate to OTP screen - show code for demo since no SMS backend
+      router.push({
+        pathname: "/auth/otp",
+        params: { phone: rawDigits, otp },
+      });
     } catch (e) {
-      Alert.alert("Error", "Could not send OTP. Please try again.");
+      setError("Could not send OTP. Please try again.");
+      shake();
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatPhone = (text: string) => {
-    const digits = text.replace(/\D/g, "");
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
   };
 
   return (
@@ -68,7 +102,12 @@ export default function PhoneScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={[styles.content, { paddingTop: topInset + 40, paddingBottom: bottomInset + 40 }]}>
+        <View
+          style={[
+            styles.content,
+            { paddingTop: topInset + 40, paddingBottom: bottomInset + 40 },
+          ]}
+        >
           {/* Logo / Brand */}
           <View style={styles.brand}>
             <View style={[styles.logoBox, { backgroundColor: colors.accent + "20" }]}>
@@ -83,43 +122,75 @@ export default function PhoneScreen() {
           {/* Form */}
           <View style={styles.form}>
             <Text style={[styles.formTitle, { color: colors.text }]}>
-              Enter your phone number
+              Enter your mobile number
             </Text>
             <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-              We'll send you a verification code
+              We'll send a 6-digit OTP to verify your number
             </Text>
 
-            <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.countryCode, { borderRightColor: colors.border }]}>
-                <Text style={[styles.countryCodeText, { color: colors.text }]}>+1</Text>
+            <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: error ? colors.accentRed : isValid ? colors.accentGreen : colors.border,
+                    borderWidth: error || isValid ? 1.5 : StyleSheet.hairlineWidth,
+                  },
+                ]}
+              >
+                {/* Indian flag + code */}
+                <View style={[styles.countryCode, { borderRightColor: colors.border }]}>
+                  <Text style={styles.flag}>🇮🇳</Text>
+                  <Text style={[styles.countryCodeText, { color: colors.text }]}>+91</Text>
+                </View>
+                <TextInput
+                  style={[styles.phoneInput, { color: colors.text }]}
+                  placeholder="98765 43210"
+                  placeholderTextColor={colors.textMuted}
+                  value={formatDisplay(rawDigits)}
+                  onChangeText={handleChangeText}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSend}
+                />
+                {isValid && (
+                  <View style={styles.validIcon}>
+                    <Ionicons name="checkmark-circle" size={20} color={colors.accentGreen} />
+                  </View>
+                )}
               </View>
-              <TextInput
-                style={[styles.phoneInput, { color: colors.text }]}
-                placeholder="(555) 000-0000"
-                placeholderTextColor={colors.textMuted}
-                value={phone}
-                onChangeText={(t) => setPhone(formatPhone(t))}
-                keyboardType="phone-pad"
-                maxLength={14}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleSend}
-              />
-            </View>
+            </Animated.View>
+
+            {error ? (
+              <View style={styles.errorRow}>
+                <Ionicons name="alert-circle" size={14} color={colors.accentRed} />
+                <Text style={[styles.errorText, { color: colors.accentRed }]}>{error}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                {rawDigits.length}/10 digits
+              </Text>
+            )}
 
             <TouchableOpacity
               onPress={handleSend}
-              disabled={!isValid || loading}
+              disabled={loading}
               style={[
                 styles.sendBtn,
-                { backgroundColor: isValid && !loading ? colors.accent : colors.border },
+                {
+                  backgroundColor: isValid && !loading ? colors.accent : colors.border,
+                  opacity: loading ? 0.8 : 1,
+                },
               ]}
             >
               {loading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <>
-                  <Text style={styles.sendBtnText}>Send Code</Text>
+                  <Text style={styles.sendBtnText}>Send OTP</Text>
                   <Ionicons name="arrow-forward" size={18} color="#FFF" />
                 </>
               )}
@@ -167,7 +238,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   form: {
-    gap: 14,
+    gap: 12,
   },
   formTitle: {
     fontSize: 22,
@@ -182,16 +253,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
-    height: 54,
+    height: 56,
   },
   countryCode: {
-    paddingHorizontal: 16,
-    height: "100%",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    height: "100%",
     borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  flag: {
+    fontSize: 20,
   },
   countryCodeText: {
     fontSize: 16,
@@ -199,10 +273,27 @@ const styles = StyleSheet.create({
   },
   phoneInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontFamily: "Inter_500Medium",
     height: "100%",
+    letterSpacing: 1,
+  },
+  validIcon: {
+    paddingRight: 14,
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  errorText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
+  hint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
   },
   sendBtn: {
     flexDirection: "row",
