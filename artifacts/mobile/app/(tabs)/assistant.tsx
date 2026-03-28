@@ -25,8 +25,8 @@ interface Message {
   content: string;
 }
 
-const GROK_API_URL = "https://api.x.ai/v1/chat/completions";
-const GROK_API_KEY = process.env.EXPO_PUBLIC_GROK_API_KEY ?? "";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY ?? "";
 
 export default function AssistantScreen() {
   const colorScheme = useColorScheme();
@@ -98,7 +98,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
     setLoading(true);
 
     try {
-      if (!GROK_API_KEY) {
+      if (!GROQ_API_KEY) {
         const assistantMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
