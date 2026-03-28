@@ -1,0 +1,63 @@
+const primary = "#0A2540";
+const accent = "#00D4FF";
+const accentGreen = "#00C896";
+const accentRed = "#FF4D6A";
+
+export default {
+  light: {
+    primary,
+    accent,
+    accentGreen,
+    accentRed,
+    background: "#F0F4F8",
+    surface: "#FFFFFF",
+    surfaceSecondary: "#F7FAFC",
+    card: "#FFFFFF",
+    text: "#0A2540",
+    textSecondary: "#64748B",
+    textMuted: "#94A3B8",
+    border: "#E2E8F0",
+    tint: accent,
+    tabIconDefault: "#94A3B8",
+    tabIconSelected: accent,
+    shadow: "rgba(10, 37, 64, 0.12)",
+    categories: {
+      Groceries: "#00C896",
+      Dining: "#FF6B35",
+      Transport: "#00D4FF",
+      Coffee: "#A0522D",
+      Shopping: "#9B59B6",
+      Healthcare: "#E74C3C",
+      Entertainment: "#F39C12",
+      Other: "#64748B",
+    },
+  },
+  dark: {
+    primary: "#FFFFFF",
+    accent,
+    accentGreen,
+    accentRed,
+    background: "#07111D",
+    surface: "#0F2035",
+    surfaceSecondary: "#0A1828",
+    card: "#0F2035",
+    text: "#F0F4F8",
+    textSecondary: "#94A3B8",
+    textMuted: "#64748B",
+    border: "#1E3A5F",
+    tint: accent,
+    tabIconDefault: "#64748B",
+    tabIconSelected: accent,
+    shadow: "rgba(0, 0, 0, 0.4)",
+    categories: {
+      Groceries: "#00C896",
+      Dining: "#FF6B35",
+      Transport: "#00D4FF",
+      Coffee: "#CD853F",
+      Shopping: "#9B59B6",
+      Healthcare: "#E74C3C",
+      Entertainment: "#F39C12",
+      Other: "#64748B",
+    },
+  },
+};
