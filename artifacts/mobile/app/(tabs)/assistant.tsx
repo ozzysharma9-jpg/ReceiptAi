@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import {
@@ -45,6 +46,7 @@ export default function AssistantScreen() {
   const [loading, setLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
+  const tabBarHeight = useBottomTabBarHeight();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -186,7 +188,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, marginBottom: tabBarHeight }]}>
       <View
         style={[
           styles.header,
@@ -215,7 +217,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={tabBarHeight}
       >
         <FlatList
           ref={flatListRef}
@@ -253,7 +255,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
             {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              paddingBottom: bottomInset + 12,
+              paddingBottom: Platform.OS === "web" ? bottomInset + 12 : 12,
             },
           ]}
         >
