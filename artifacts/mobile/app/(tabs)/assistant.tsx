@@ -120,7 +120,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
           Authorization: `Bearer ${GROK_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "grok-beta",
+          model: "grok-3",
           messages: [
             { role: "system", content: buildSystemPrompt() },
             ...historyForApi,
@@ -132,6 +132,12 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       });
 
       const data = await res.json();
+
+      if (!res.ok) {
+        const errMsg = data?.error?.message ?? `API error ${res.status}`;
+        throw new Error(errMsg);
+      }
+
       const reply =
         data.choices?.[0]?.message?.content ??
         "Sorry, I couldn't get a response. Please try again.";
@@ -142,11 +148,11 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
         content: reply,
       };
       setMessages((prev) => [assistantMsg, ...prev]);
-    } catch (e) {
+    } catch (e: any) {
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "Something went wrong. Please check your connection and try again.",
+        content: `Sorry, something went wrong: ${e?.message ?? "Please check your connection and try again."}`,
       };
       setMessages((prev) => [assistantMsg, ...prev]);
     } finally {
