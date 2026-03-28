@@ -43,6 +43,97 @@ const CATEGORY_ICONS: Record<Category, string> = {
   Other: "receipt",
 };
 
+const GROK_API_KEY = process.env.EXPO_PUBLIC_GROK_API_KEY ?? "";
+
+async function extractReceiptWithGrok(imageUri: string): Promise<{
+  merchant: string;
+  amount: string;
+  date: string;
+  category: Category;
+} | null> {
+  try {
+    // Convert image to base64
+    let base64Image = "";
+
+    if (Platform.OS === "web") {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      base64Image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } else {
+      const { FileSystem } = await import("expo-file-system");
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      base64Image = base64;
+    }
+
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "grok-2-vision-1212",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                  detail: "high",
+                },
+              },
+              {
+                type: "text",
+                text: `Analyze this receipt image and extract the following details. Respond ONLY with a valid JSON object (no markdown, no code blocks):
+{
+  "merchant": "store/restaurant name",
+  "amount": "total amount as number string e.g. 24.99",
+  "date": "date in YYYY-MM-DD format, use today if not visible",
+  "category": "one of: Groceries, Dining, Transport, Coffee, Shopping, Healthcare, Entertainment, Other"
+}
+
+If you cannot determine a value, use reasonable defaults. Today's date is ${new Date().toISOString().split("T")[0]}.`,
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+        temperature: 0.1,
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content ?? "";
+
+    // Parse JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    return {
+      merchant: parsed.merchant ?? "",
+      amount: String(parsed.amount ?? ""),
+      date: parsed.date ?? new Date().toISOString().split("T")[0],
+      category: (CATEGORIES.includes(parsed.category) ? parsed.category : "Other") as Category,
+    };
+  } catch (e) {
+    console.error("Grok OCR error:", e);
+    return null;
+  }
+}
+
 export default function ScanScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
@@ -57,6 +148,7 @@ export default function ScanScreen() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [category, setCategory] = useState<Category>("Other");
   const [saving, setSaving] = useState(false);
+  const [aiExtracted, setAiExtracted] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -74,6 +166,7 @@ export default function ScanScreen() {
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.8,
       allowsEditing: false,
+      base64: false,
     });
     if (!result.canceled && result.assets[0]) {
       handleImage(result.assets[0].uri);
@@ -94,23 +187,35 @@ export default function ScanScreen() {
   const handleImage = async (uri: string) => {
     setImageUri(uri);
     setProcessing(true);
+    setAiExtracted(false);
+    setMerchant("");
+    setAmount("");
+    setDate(new Date().toISOString().split("T")[0]);
+    setCategory("Other");
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    // Simulate OCR processing - in production, integrate with Google ML Kit or Vision API
-    await new Promise((res) => setTimeout(res, 1500));
-
-    // Auto-suggest category based on mock OCR
-    const mockMerchants = [
-      { name: "Whole Foods Market", category: "Groceries" as Category, amount: "47.23" },
-      { name: "Starbucks", category: "Coffee" as Category, amount: "6.85" },
-      { name: "McDonald's", category: "Dining" as Category, amount: "12.40" },
-      { name: "Uber", category: "Transport" as Category, amount: "18.50" },
-      { name: "CVS Pharmacy", category: "Healthcare" as Category, amount: "24.99" },
-    ];
-
-    setProcessing(false);
+    try {
+      if (GROK_API_KEY) {
+        const extracted = await extractReceiptWithGrok(uri);
+        if (extracted) {
+          setMerchant(extracted.merchant);
+          setAmount(extracted.amount);
+          setDate(extracted.date);
+          setCategory(extracted.category);
+          setAiExtracted(true);
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Extraction failed", e);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleSave = async () => {
@@ -157,23 +262,15 @@ export default function ScanScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Add Receipt
-        </Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Add Receipt</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: bottomInset + 20 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomInset + 20 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -185,15 +282,15 @@ export default function ScanScreen() {
               {processing && (
                 <View style={styles.processingOverlay}>
                   <ActivityIndicator color="#FFF" size="large" />
-                  <Text style={styles.processingText}>Scanning receipt...</Text>
+                  <Text style={styles.processingText}>AI scanning receipt...</Text>
+                  <Text style={styles.processingSubtext}>Extracting details with Grok</Text>
                 </View>
               )}
-              <TouchableOpacity
-                style={styles.retakeBtn}
-                onPress={() => setImageUri(null)}
-              >
-                <Ionicons name="refresh" size={16} color="#FFF" />
-              </TouchableOpacity>
+              {!processing && (
+                <TouchableOpacity style={styles.retakeBtn} onPress={() => { setImageUri(null); setAiExtracted(false); }}>
+                  <Ionicons name="refresh" size={16} color="#FFF" />
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.captureRow}>
@@ -205,40 +302,32 @@ export default function ScanScreen() {
                 <Text style={styles.captureBtnText}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.captureBtn,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    borderWidth: 1,
-                  },
-                ]}
+                style={[styles.captureBtn, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
                 onPress={pickFromGallery}
               >
                 <Ionicons name="image" size={24} color={colors.text} />
-                <Text style={[styles.captureBtnText, { color: colors.text }]}>
-                  Gallery
-                </Text>
+                <Text style={[styles.captureBtnText, { color: colors.text }]}>Gallery</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
+        {/* AI extracted badge */}
+        {aiExtracted && !processing && (
+          <View style={[styles.aiBadge, { backgroundColor: colors.accentGreen + "15", borderColor: colors.accentGreen + "40" }]}>
+            <Ionicons name="sparkles" size={14} color={colors.accentGreen} />
+            <Text style={[styles.aiBadgeText, { color: colors.accentGreen }]}>
+              Details auto-filled by Grok AI — review and edit if needed
+            </Text>
+          </View>
+        )}
+
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Merchant
-            </Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Merchant</Text>
             <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.surface,
-                  color: colors.text,
-                  borderColor: colors.border,
-                },
-              ]}
+              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: aiExtracted ? colors.accentGreen + "60" : colors.border }]}
               placeholder="e.g. Whole Foods"
               placeholderTextColor={colors.textMuted}
               value={merchant}
@@ -249,18 +338,9 @@ export default function ScanScreen() {
 
           <View style={styles.fieldRow}>
             <View style={[styles.fieldGroup, { flex: 1 }]}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Amount ($)
-              </Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Amount ($)</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: aiExtracted ? colors.accentGreen + "60" : colors.border }]}
                 placeholder="0.00"
                 placeholderTextColor={colors.textMuted}
                 value={amount}
@@ -270,18 +350,9 @@ export default function ScanScreen() {
               />
             </View>
             <View style={[styles.fieldGroup, { flex: 1 }]}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>
-                Date
-              </Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Date</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.surface,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
+                style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: aiExtracted ? colors.accentGreen + "60" : colors.border }]}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.textMuted}
                 value={date}
@@ -291,9 +362,7 @@ export default function ScanScreen() {
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>
-              Category
-            </Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Category</Text>
             <View style={styles.categoryGrid}>
               {CATEGORIES.map((cat) => {
                 const selected = cat === category;
@@ -304,29 +373,11 @@ export default function ScanScreen() {
                     onPress={() => setCategory(cat)}
                     style={[
                       styles.categoryChip,
-                      {
-                        backgroundColor: selected
-                          ? catColor + "20"
-                          : colors.surface,
-                        borderColor: selected ? catColor : colors.border,
-                      },
+                      { backgroundColor: selected ? catColor + "20" : colors.surface, borderColor: selected ? catColor : colors.border },
                     ]}
                   >
-                    <Ionicons
-                      name={CATEGORY_ICONS[cat] as any}
-                      size={14}
-                      color={selected ? catColor : colors.textMuted}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        {
-                          color: selected ? catColor : colors.textSecondary,
-                        },
-                      ]}
-                    >
-                      {cat}
-                    </Text>
+                    <Ionicons name={CATEGORY_ICONS[cat] as any} size={14} color={selected ? catColor : colors.textMuted} />
+                    <Text style={[styles.categoryText, { color: selected ? catColor : colors.textSecondary }]}>{cat}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -336,11 +387,8 @@ export default function ScanScreen() {
 
         <TouchableOpacity
           onPress={handleSave}
-          disabled={saving}
-          style={[
-            styles.saveBtn,
-            { backgroundColor: saving ? colors.border : colors.accent },
-          ]}
+          disabled={saving || processing}
+          style={[styles.saveBtn, { backgroundColor: saving || processing ? colors.border : colors.accent }]}
         >
           {saving ? (
             <ActivityIndicator color="#FFF" />
@@ -357,9 +405,7 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -368,22 +414,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-  },
-  content: {
-    padding: 16,
-    gap: 20,
-  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  content: { padding: 16, gap: 16 },
   imageSection: {},
-  captureRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
+  captureRow: { flexDirection: "row", gap: 12 },
   captureBtn: {
     flex: 1,
     height: 120,
@@ -392,33 +427,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  captureBtnText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  imageContainer: {
-    position: "relative",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  previewImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 16,
-  },
+  captureBtnText: { color: "#FFF", fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  imageContainer: { position: "relative", borderRadius: 16, overflow: "hidden" },
+  previewImage: { width: "100%", height: 220, borderRadius: 16 },
   processingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.65)",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
   },
-  processingText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
+  processingText: { color: "#FFF", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  processingSubtext: { color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: "Inter_400Regular" },
   retakeBtn: {
     position: "absolute",
     top: 10,
@@ -430,35 +450,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  form: {
-    gap: 16,
-  },
-  fieldGroup: {
-    gap: 6,
-  },
-  fieldRow: {
+  aiBadge: {
     flexDirection: "row",
-    gap: 12,
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  label: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
+  aiBadgeText: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  form: { gap: 16 },
+  fieldGroup: { gap: 6 },
+  fieldRow: { flexDirection: "row", gap: 12 },
+  label: { fontSize: 12, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
   input: {
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   categoryChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -468,10 +481,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  categoryText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
+  categoryText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -480,9 +490,5 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 16,
   },
-  saveBtnText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
+  saveBtnText: { color: "#FFF", fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });
