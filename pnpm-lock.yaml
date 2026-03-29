@@ -214,6 +214,10 @@ importers:
         version: 3.1.0
 
   artifacts/mobile:
+    dependencies:
+      expo-file-system:
+        specifier: 56.0.0-canary-20260305-5163746
+        version: 56.0.0-canary-20260305-5163746(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -3307,6 +3311,12 @@ packages:
     resolution: {integrity: sha512-s3DlrDdiscBHtab/6W1osrjGL+C2bvoInPJD7sOwmxfJ5Woynv2oc+Fz1/xVXaE/V7HE/+xrHC/H45tu6lZzzg==}
     peerDependencies:
       expo: '*'
+      react-native: '*'
+
+  expo-file-system@56.0.0-canary-20260305-5163746:
+    resolution: {integrity: sha512-RiH58M+LdH0/pm9b1et25k/+UyD6Scxv2cML63Ulzg48nVsqs83IrHCr5my9xh/06l1ogGRkoQG4mGNLJ1KE7Q==}
+    peerDependencies:
+      expo: 56.0.0-canary-20260305-5163746
       react-native: '*'
 
   expo-font@14.0.11:
@@ -9021,6 +9031,11 @@ snapshots:
       - supports-color
 
   expo-file-system@19.0.21(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
+    dependencies:
+      expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+
+  expo-file-system@56.0.0-canary-20260305-5163746(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)):
     dependencies:
       expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)

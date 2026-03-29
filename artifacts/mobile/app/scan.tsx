@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -68,7 +69,6 @@ async function extractReceiptWithAI(imageUri: string): Promise<{
         reader.readAsDataURL(blob);
       });
     } else {
-      const { FileSystem } = await import("expo-file-system");
       const base64 = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
