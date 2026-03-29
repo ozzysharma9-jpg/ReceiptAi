@@ -99,10 +99,13 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
 
     try {
       if (!GROQ_API_KEY) {
+        const monthTotal = receipts
+          .filter((r) => { const d = new Date(r.date); const n = new Date(); return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear(); })
+          .reduce((s, r) => s + r.amount, 0);
         const assistantMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: `To enable the AI assistant, add your xAI Grok API key as EXPO_PUBLIC_GROK_API_KEY in your environment settings.\n\nYour spending summary:\n• Total receipts: ${receipts.length}\n• This month: $${receipts.filter(r => { const d = new Date(r.date); const n = new Date(); return d.getMonth() === n.getMonth(); }).reduce((s, r) => s + r.amount, 0).toFixed(2)}`,
+          content: `To enable the AI assistant, add your Groq API key as EXPO_PUBLIC_GROQ_API_KEY.\n\nGet a free key at: console.groq.com\n\nYour spending so far:\n• Receipts: ${receipts.length}\n• This month: $${monthTotal.toFixed(2)}`,
         };
         setMessages((prev) => [assistantMsg, ...prev]);
         return;
@@ -113,14 +116,14 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
         .slice(-10)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const res = await fetch(GROK_API_URL, {
+      const res = await fetch(GROQ_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${GROK_API_KEY}`,
+          Authorization: `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "grok-3-mini",
+          model: "llama-3.1-8b-instant",
           messages: [
             { role: "system", content: buildSystemPrompt() },
             ...historyForApi,
@@ -134,13 +137,8 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       const data = await res.json();
 
       if (!res.ok) {
-        const errDetail = data?.error ?? data?.message ?? "";
-        const errStr = typeof errDetail === "string" ? errDetail : JSON.stringify(errDetail);
-        // Credits / billing issue
-        if (res.status === 403 && errStr.toLowerCase().includes("credit")) {
-          throw new Error("NO_CREDITS");
-        }
-        throw new Error(errStr || `API error ${res.status}`);
+        const errDetail = data?.error?.message ?? data?.message ?? `API error ${res.status}`;
+        throw new Error(String(errDetail));
       }
 
       const reply =
@@ -154,13 +152,10 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
       };
       setMessages((prev) => [assistantMsg, ...prev]);
     } catch (e: any) {
-      const isNoCredits = e?.message === "NO_CREDITS";
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: isNoCredits
-          ? "⚠️ Your xAI account has no credits yet.\n\nTo use the AI assistant, add credits at:\nconsole.x.ai → Billing\n\nOnce credits are added, the assistant will work instantly."
-          : `Sorry, something went wrong. Please check your connection and try again.`,
+        content: `Sorry, something went wrong: ${e?.message ?? "Please check your connection and try again."}`,
       };
       setMessages((prev) => [assistantMsg, ...prev]);
     } finally {
