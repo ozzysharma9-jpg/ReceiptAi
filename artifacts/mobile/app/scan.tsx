@@ -43,9 +43,9 @@ const CATEGORY_ICONS: Record<Category, string> = {
   Other: "receipt",
 };
 
-const GROK_API_KEY = process.env.EXPO_PUBLIC_GROK_API_KEY ?? "";
+const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY ?? "";
 
-async function extractReceiptWithGrok(imageUri: string): Promise<{
+async function extractReceiptWithAI(imageUri: string): Promise<{
   merchant: string;
   amount: string;
   date: string;
@@ -75,14 +75,14 @@ async function extractReceiptWithGrok(imageUri: string): Promise<{
       base64Image = base64;
     }
 
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${GROK_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "grok-2-vision-1212",
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
         messages: [
           {
             role: "user",
@@ -91,7 +91,6 @@ async function extractReceiptWithGrok(imageUri: string): Promise<{
                 type: "image_url",
                 image_url: {
                   url: `data:image/jpeg;base64,${base64Image}`,
-                  detail: "high",
                 },
               },
               {
@@ -129,7 +128,7 @@ If you cannot determine a value, use reasonable defaults. Today's date is ${new 
       category: (CATEGORIES.includes(parsed.category) ? parsed.category : "Other") as Category,
     };
   } catch (e) {
-    console.error("Grok OCR error:", e);
+    console.error("AI receipt extraction error:", e);
     return null;
   }
 }
@@ -198,8 +197,8 @@ export default function ScanScreen() {
     }
 
     try {
-      if (GROK_API_KEY) {
-        const extracted = await extractReceiptWithGrok(uri);
+      if (GROQ_API_KEY) {
+        const extracted = await extractReceiptWithAI(uri);
         if (extracted) {
           setMerchant(extracted.merchant);
           setAmount(extracted.amount);
