@@ -45,18 +45,26 @@ export default function ProfileScreen() {
     return { total, monthTotal, count: receipts.length, categories };
   }, [receipts]);
 
+  const completeSignOut = async () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    await signOut();
+    router.replace("/auth");
+  };
+
   const handleSignOut = () => {
+    if (Platform.OS === "web") {
+      void completeSignOut();
+      return;
+    }
+
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign Out",
         style: "destructive",
-        onPress: async () => {
-          if (Platform.OS !== "web") {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          }
-          await signOut();
-        },
+        onPress: () => void completeSignOut(),
       },
     ]);
   };
