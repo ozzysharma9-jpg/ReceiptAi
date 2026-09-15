@@ -29,3 +29,6 @@ timeoutMs = 20000
 
 [userenv.shared]
 EXPO_PUBLIC_GROK_API_KEY = "xai-swQLVbhw3cfHIl5GIaieHtwIIGXIubcBjzmACkyfwXv884fGyDYbvgqNgwhycGhHDtOayt0t86aedKPX"
+
+[nix]
+channel = "stable-25_05"

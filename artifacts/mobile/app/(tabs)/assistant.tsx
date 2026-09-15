@@ -25,8 +25,9 @@ interface Message {
   content: string;
 }
 
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY ?? "";
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? "";
 
 export default function AssistantScreen() {
   const colorScheme = useColorScheme();
@@ -98,14 +99,14 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
     setLoading(true);
 
     try {
-      if (!GROQ_API_KEY) {
+      if (!GEMINI_API_KEY) {
         const monthTotal = receipts
           .filter((r) => { const d = new Date(r.date); const n = new Date(); return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear(); })
           .reduce((s, r) => s + r.amount, 0);
         const assistantMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: `To enable the AI assistant, add your Groq API key as EXPO_PUBLIC_GROQ_API_KEY.\n\nGet a free key at: console.groq.com\n\nYour spending so far:\n• Receipts: ${receipts.length}\n• This month: $${monthTotal.toFixed(2)}`,
+          content: `The Gemini assistant is not configured yet. Add a valid Gemini API key and restart the app.\n\nYour spending so far:\n• Receipts: ${receipts.length}\n• This month: $${monthTotal.toFixed(2)}`,
         };
         setMessages((prev) => [assistantMsg, ...prev]);
         return;
@@ -113,36 +114,61 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
 
       const historyForApi = [...messages]
         .reverse()
+        .filter((m) => m.id !== "welcome")
         .slice(-10)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
 
-      const res = await fetch(GROQ_API_URL, {
+      const res = await fetch(GEMINI_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${GROQ_API_KEY}`,
+          "x-goog-api-key": GEMINI_API_KEY,
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [
-            { role: "system", content: buildSystemPrompt() },
+          systemInstruction: {
+            parts: [{ text: buildSystemPrompt() }],
+          },
+          contents: [
             ...historyForApi,
-            { role: "user", content: userMsg.content },
+            { role: "user", parts: [{ text: userMsg.content }] },
           ],
-          max_tokens: 500,
-          temperature: 0.7,
+          generationConfig: {
+            maxOutputTokens: 8192,
+            temperature: 0.7,
+          },
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        const errDetail = data?.error?.message ?? data?.message ?? `API error ${res.status}`;
-        throw new Error(String(errDetail));
+        const errDetail = String(
+          data?.error?.message ?? data?.message ?? `API error ${res.status}`
+        );
+        if (
+          res.status === 400 &&
+          /api key|api_key|key/i.test(errDetail)
+        ) {
+          throw new Error(
+            "Gemini rejected this API key. Please use a valid Gemini API key from Google AI Studio."
+          );
+        }
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(
+            "Gemini rejected this API key. Check that it is active and that the Generative Language API is enabled."
+          );
+        }
+        throw new Error(errDetail);
       }
 
       const reply =
-        data.choices?.[0]?.message?.content ??
+        data.candidates?.[0]?.content?.parts
+          ?.map((part: { text?: string }) => part.text ?? "")
+          .join("")
+          .trim() ??
         "Sorry, I couldn't get a response. Please try again.";
 
       const assistantMsg: Message = {
@@ -217,7 +243,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
               AI Assistant
             </Text>
             <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
-              Powered by Grok
+              Powered by Gemini
             </Text>
           </View>
         </View>

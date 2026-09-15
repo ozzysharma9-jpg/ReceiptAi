@@ -70,7 +70,7 @@ async function extractReceiptWithAI(imageUri: string): Promise<{
       });
     } else {
       const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: "base64",
       });
       base64Image = base64;
     }
