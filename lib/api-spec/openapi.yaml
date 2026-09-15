@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Phone verification operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/otp/send:
+    post:
+      operationId: sendOtp
+      tags: [auth]
+      summary: Send a phone verification code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpSendInput"
+      responses:
+        "200":
+          description: Verification code accepted for delivery
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpSendResponse"
+        "400":
+          description: Invalid phone number
+        "502":
+          description: SMS provider error
+  /auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify a phone verification code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerifyInput"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpVerifyResponse"
+        "400":
+          description: Invalid code or phone number
+        "502":
+          description: SMS provider error
 components:
   schemas:
     HealthStatus:
@@ -33,4 +79,43 @@ components:
           type: string
       required:
         - status
+    OtpSendInput:
+      type: object
+      properties:
+        phone:
+          type: string
+          description: Indian mobile number in 10-digit or E.164 format
+          minLength: 10
+      required:
+        - phone
+    OtpSendResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        expiresIn:
+          type: integer
+          description: Approximate verification code lifetime in seconds
+      required:
+        - success
+        - expiresIn
+    OtpVerifyInput:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 10
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+      required:
+        - phone
+        - code
+    OtpVerifyResponse:
+      type: object
+      properties:
+        verified:
+          type: boolean
+      required:
+        - verified
 

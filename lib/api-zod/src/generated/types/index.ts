@@ -7,3 +7,7 @@
  */
 
 export * from "./healthStatus";
+export * from "./otpSendInput";
+export * from "./otpSendResponse";
+export * from "./otpVerifyInput";
+export * from "./otpVerifyResponse";

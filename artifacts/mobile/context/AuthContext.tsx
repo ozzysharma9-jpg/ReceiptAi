@@ -1,4 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  sendOtp as sendOtpRequest,
+  verifyOtp as verifyOtpRequest,
+} from "@workspace/api-client-react";
 import React, {
   createContext,
   useCallback,
@@ -20,20 +24,17 @@ interface AuthContextType {
   signIn: (phone: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
-  pendingOtp: string | null;
-  sendOtp: (phone: string) => Promise<string>;
+  sendOtp: (phone: string) => Promise<void>;
   verifyOtp: (code: string, phone: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const AUTH_KEY = "receiptai_auth";
-const OTP_KEY = "receiptai_otp";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingOtp, setPendingOtp] = useState<string | null>(null);
 
   useEffect(() => {
     loadAuth();
@@ -52,25 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const sendOtp = useCallback(async (phone: string): Promise<string> => {
-    // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    // Store it locally (in production this would be sent via SMS)
-    await AsyncStorage.setItem(OTP_KEY, JSON.stringify({ otp, phone, expires: Date.now() + 5 * 60 * 1000 }));
-    setPendingOtp(otp);
-    return otp;
+  const sendOtp = useCallback(async (phone: string): Promise<void> => {
+    const response = await sendOtpRequest({ phone });
+    if (!response.success) {
+      throw new Error("SMS delivery was not accepted");
+    }
   }, []);
 
   const verifyOtp = useCallback(async (code: string, phone: string): Promise<boolean> => {
-    try {
-      const stored = await AsyncStorage.getItem(OTP_KEY);
-      if (!stored) return false;
-      const { otp, expires } = JSON.parse(stored);
-      if (Date.now() > expires) return false;
-      return otp === code;
-    } catch {
-      return false;
-    }
+    const response = await verifyOtpRequest({ phone, code });
+    return response.verified;
   }, []);
 
   const signIn = useCallback(async (phone: string, name = "") => {
@@ -80,8 +72,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       joinedAt: Date.now(),
     };
     await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(profile));
-    await AsyncStorage.removeItem(OTP_KEY);
-    setPendingOtp(null);
     setUser(profile);
   }, []);
 
@@ -106,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signOut,
         updateProfile,
-        pendingOtp,
         sendOtp,
         verifyOtp,
       }}

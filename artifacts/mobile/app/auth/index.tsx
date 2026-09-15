@@ -82,11 +82,10 @@ export default function PhoneScreen() {
     }
 
     try {
-      const otp = await sendOtp(rawDigits);
-      // Navigate to OTP screen - show code for demo since no SMS backend
+      await sendOtp(rawDigits);
       router.push({
         pathname: "/auth/otp",
-        params: { phone: rawDigits, otp },
+        params: { phone: rawDigits },
       });
     } catch (e) {
       setError("Could not send OTP. Please try again.");

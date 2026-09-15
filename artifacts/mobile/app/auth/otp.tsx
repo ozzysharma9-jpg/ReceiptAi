@@ -30,15 +30,15 @@ export default function OtpScreen() {
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { phone, otp: passedOtp } = useLocalSearchParams<{ phone: string; otp: string }>();
+  const { phone } = useLocalSearchParams<{ phone: string }>();
   const { verifyOtp, signIn, sendOtp } = useAuth();
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(30);
-  const [demoOtp, setDemoOtp] = useState(passedOtp ?? "");
   const [wrongCode, setWrongCode] = useState(false);
+  const [resendError, setResendError] = useState("");
   const inputRef = useRef<TextInput>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
@@ -54,7 +54,8 @@ export default function OtpScreen() {
   }, [countdown]);
 
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 400);
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 400);
+    return () => clearTimeout(focusTimer);
   }, []);
 
   const shake = () => {
@@ -111,10 +112,12 @@ export default function OtpScreen() {
     setResending(true);
     setCode("");
     setWrongCode(false);
+    setResendError("");
     try {
-      const newOtp = await sendOtp(phone ?? "");
-      setDemoOtp(newOtp);
+      await sendOtp(phone ?? "");
       setCountdown(30);
+    } catch {
+      setResendError("Could not resend the code. Please try again.");
     } finally {
       setResending(false);
     }
@@ -154,21 +157,6 @@ export default function OtpScreen() {
             </Text>
           </Text>
         </View>
-
-        {/* Demo OTP banner */}
-        {demoOtp ? (
-          <View style={[styles.demoBanner, { backgroundColor: colors.accent + "12", borderColor: colors.accent + "30" }]}>
-            <Ionicons name="information-circle" size={16} color={colors.accent} />
-            <Text style={[styles.demoText, { color: colors.textSecondary }]}>
-              Demo OTP:{" "}
-              <Text style={[styles.demoCode, { color: colors.accent }]}>{demoOtp}</Text>
-              {"  "}(No SMS — tap to auto-fill)
-            </Text>
-            <TouchableOpacity onPress={() => { setCode(demoOtp); setWrongCode(false); }}>
-              <Ionicons name="copy" size={16} color={colors.accent} />
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         {/* Hidden input */}
         <TextInput
@@ -235,6 +223,11 @@ export default function OtpScreen() {
             </Text>
           </View>
         )}
+        {resendError ? (
+          <Text style={[styles.errorText, { color: colors.accentRed }]}>
+            {resendError}
+          </Text>
+        ) : null}
 
         {/* Verify button */}
         <TouchableOpacity
@@ -321,25 +314,6 @@ const styles = StyleSheet.create({
   },
   phoneDisplay: {
     fontFamily: "Inter_700Bold",
-  },
-  demoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    width: "100%",
-  },
-  demoText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
-  demoCode: {
-    fontFamily: "Inter_700Bold",
-    letterSpacing: 2,
   },
   hiddenInput: {
     position: "absolute",

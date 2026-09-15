@@ -8,3 +8,28 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface OtpSendInput {
+  /**
+   * Indian mobile number in 10-digit or E.164 format
+   * @minLength 10
+   */
+  phone: string;
+}
+
+export interface OtpSendResponse {
+  success: boolean;
+  /** Approximate verification code lifetime in seconds */
+  expiresIn: number;
+}
+
+export interface OtpVerifyInput {
+  /** @minLength 10 */
+  phone: string;
+  /** @pattern ^[0-9]{6}$ */
+  code: string;
+}
+
+export interface OtpVerifyResponse {
+  verified: boolean;
+}
