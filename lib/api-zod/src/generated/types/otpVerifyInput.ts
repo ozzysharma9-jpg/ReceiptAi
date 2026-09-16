@@ -7,8 +7,7 @@
  */
 
 export interface OtpVerifyInput {
-  /** @minLength 10 */
-  phone: string;
+  email: string;
   /** @pattern ^[0-9]{6}$ */
   code: string;
 }

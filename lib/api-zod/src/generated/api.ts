@@ -16,15 +16,10 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary Send a phone verification code
+ * @summary Send an email verification code
  */
-export const sendOtpBodyPhoneMin = 10;
-
 export const SendOtpBody = zod.object({
-  phone: zod
-    .string()
-    .min(sendOtpBodyPhoneMin)
-    .describe("Indian mobile number in 10-digit or E.164 format"),
+  email: zod.string().email().describe("Email address to verify"),
 });
 
 export const SendOtpResponse = zod.object({
@@ -35,14 +30,12 @@ export const SendOtpResponse = zod.object({
 });
 
 /**
- * @summary Verify a phone verification code
+ * @summary Verify an email verification code
  */
-export const verifyOtpBodyPhoneMin = 10;
-
 export const verifyOtpBodyCodeRegExp = new RegExp("^[0-9]{6}$");
 
 export const VerifyOtpBody = zod.object({
-  phone: zod.string().min(verifyOtpBodyPhoneMin),
+  email: zod.string().email(),
   code: zod.string().regex(verifyOtpBodyCodeRegExp),
 });
 

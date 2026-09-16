@@ -12,7 +12,7 @@ import React, {
 } from "react";
 
 export interface UserProfile {
-  phone: string;
+  email: string;
   name: string;
   joinedAt: number;
 }
@@ -21,11 +21,11 @@ interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  signIn: (phone: string, name?: string) => Promise<void>;
+  signIn: (email: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
-  sendOtp: (phone: string) => Promise<void>;
-  verifyOtp: (code: string, phone: string) => Promise<boolean>;
+  sendOtp: (email: string) => Promise<void>;
+  verifyOtp: (code: string, email: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -44,7 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = await AsyncStorage.getItem(AUTH_KEY);
       if (stored) {
-        setUser(JSON.parse(stored));
+        const parsed = JSON.parse(stored) as Partial<UserProfile>;
+        if (typeof parsed.email === "string" && parsed.email.length > 0) {
+          setUser(parsed as UserProfile);
+        } else {
+          await AsyncStorage.removeItem(AUTH_KEY);
+        }
       }
     } catch (e) {
       console.error("Failed to load auth", e);
@@ -53,22 +58,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const sendOtp = useCallback(async (phone: string): Promise<void> => {
-    const response = await sendOtpRequest({ phone });
+  const sendOtp = useCallback(async (email: string): Promise<void> => {
+    const response = await sendOtpRequest({ email });
     if (!response.success) {
       throw new Error("SMS delivery was not accepted");
     }
   }, []);
 
-  const verifyOtp = useCallback(async (code: string, phone: string): Promise<boolean> => {
-    const response = await verifyOtpRequest({ phone, code });
+  const verifyOtp = useCallback(async (code: string, email: string): Promise<boolean> => {
+    const response = await verifyOtpRequest({ email, code });
     return response.verified;
   }, []);
 
-  const signIn = useCallback(async (phone: string, name = "") => {
+  const signIn = useCallback(async (email: string, name = "") => {
     const profile: UserProfile = {
-      phone,
-      name: name || phone,
+      email,
+      name: name || email,
       joinedAt: Date.now(),
     };
     await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(profile));

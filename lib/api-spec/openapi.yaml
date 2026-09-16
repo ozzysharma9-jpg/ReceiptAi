@@ -11,7 +11,7 @@ tags:
   - name: health
     description: Health operations
   - name: auth
-    description: Phone verification operations
+    description: Email verification operations
 paths:
   /healthz:
     get:
@@ -30,7 +30,7 @@ paths:
     post:
       operationId: sendOtp
       tags: [auth]
-      summary: Send a phone verification code
+      summary: Send an email verification code
       requestBody:
         required: true
         content:
@@ -45,14 +45,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/OtpSendResponse"
         "400":
-          description: Invalid phone number
+          description: Invalid email address
         "502":
-          description: SMS provider error
+          description: Email provider error
   /auth/otp/verify:
     post:
       operationId: verifyOtp
       tags: [auth]
-      summary: Verify a phone verification code
+      summary: Verify an email verification code
       requestBody:
         required: true
         content:
@@ -67,9 +67,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/OtpVerifyResponse"
         "400":
-          description: Invalid code or phone number
+          description: Invalid code or email address
         "502":
-          description: SMS provider error
+          description: Email provider error
 components:
   schemas:
     HealthStatus:
@@ -82,12 +82,12 @@ components:
     OtpSendInput:
       type: object
       properties:
-        phone:
+        email:
           type: string
-          description: Indian mobile number in 10-digit or E.164 format
-          minLength: 10
+          format: email
+          description: Email address to verify
       required:
-        - phone
+        - email
     OtpSendResponse:
       type: object
       properties:
@@ -102,14 +102,14 @@ components:
     OtpVerifyInput:
       type: object
       properties:
-        phone:
+        email:
           type: string
-          minLength: 10
+          format: email
         code:
           type: string
           pattern: "^[0-9]{6}$"
       required:
-        - phone
+        - email
         - code
     OtpVerifyResponse:
       type: object

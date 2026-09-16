@@ -20,17 +20,12 @@ import { useAuth } from "@/context/AuthContext";
 
 const OTP_LENGTH = 6;
 
-function formatIndianPhone(digits: string) {
-  if (digits.length <= 5) return digits;
-  return `${digits.slice(0, 5)} ${digits.slice(5, 10)}`;
-}
-
 export default function OtpScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { email } = useLocalSearchParams<{ email: string }>();
   const { verifyOtp, signIn, sendOtp } = useAuth();
 
   const [code, setCode] = useState("");
@@ -79,7 +74,7 @@ export default function OtpScreen() {
     }
 
     try {
-      const valid = await verifyOtp(finalCode, phone ?? "");
+      const valid = await verifyOtp(finalCode, email ?? "");
       if (valid) {
         if (Platform.OS !== "web") {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -91,7 +86,7 @@ export default function OtpScreen() {
           tension: 80,
           friction: 7,
         }).start(async () => {
-          await signIn(phone ?? "", phone ?? "");
+          await signIn(email ?? "");
           router.replace("/(tabs)");
         });
       } else {
@@ -114,7 +109,7 @@ export default function OtpScreen() {
     setWrongCode(false);
     setResendError("");
     try {
-      await sendOtp(phone ?? "");
+      await sendOtp(email ?? "");
       setCountdown(30);
     } catch {
       setResendError("Could not resend the code. Please try again.");
@@ -147,13 +142,13 @@ export default function OtpScreen() {
         {/* Icon + title */}
         <View style={styles.top}>
           <View style={[styles.iconBox, { backgroundColor: colors.accent + "15" }]}>
-            <Text style={styles.flagLarge}>🇮🇳</Text>
+            <Ionicons name="mail" size={36} color={colors.accent} />
           </View>
           <Text style={[styles.title, { color: colors.text }]}>Enter OTP</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Sent to{" "}
-            <Text style={[styles.phoneDisplay, { color: colors.text }]}>
-              +91 {formatIndianPhone(phone ?? "")}
+              <Text style={[styles.emailDisplay, { color: colors.text }]}>
+                {email ?? ""}
             </Text>
           </Text>
         </View>
@@ -298,9 +293,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 4,
   },
-  flagLarge: {
-    fontSize: 36,
-  },
   title: {
     fontSize: 28,
     fontFamily: "Inter_700Bold",
@@ -312,7 +304,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  phoneDisplay: {
+  emailDisplay: {
     fontFamily: "Inter_700Bold",
   },
   hiddenInput: {

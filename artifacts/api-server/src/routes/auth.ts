@@ -1,3 +1,4 @@
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { Router, type IRouter } from "express";
 import {
   SendOtpBody,
@@ -8,79 +9,98 @@ import {
 
 const router: IRouter = Router();
 
-const TWILIO_VERIFY_BASE_URL = "https://verify.twilio.com/v2/Services";
 const OTP_EXPIRES_IN_SECONDS = 10 * 60;
+const RESEND_COOLDOWN_MS = 30 * 1000;
+const MAX_VERIFY_ATTEMPTS = 5;
 
-function normalizeIndianPhone(phone: string): string | null {
-  const digits = phone.replace(/\D/g, "");
-  const indianDigits = digits.startsWith("91") && digits.length === 12
-    ? digits.slice(2)
-    : digits;
+type OtpChallenge = {
+  salt: string;
+  codeHash: string;
+  expiresAt: number;
+  attempts: number;
+  lastSentAt: number;
+};
 
-  if (!/^[6-9]\d{9}$/.test(indianDigits)) {
-    return null;
-  }
+const challenges = new Map<string, OtpChallenge>();
 
-  return `+91${indianDigits}`;
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-function getTwilioConfig() {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-
-  if (!accountSid || !authToken || !verifyServiceSid) {
-    throw new Error("Twilio OTP configuration is incomplete");
-  }
-
-  return { accountSid, authToken, verifyServiceSid };
+function hashCode(salt: string, code: string): string {
+  return createHash("sha256").update(`${salt}:${code}`).digest("hex");
 }
 
-async function callTwilioVerify(
-  endpoint: "Verifications" | "VerificationCheck",
-  fields: Record<string, string>,
-) {
-  const { accountSid, authToken, verifyServiceSid } = getTwilioConfig();
-  const encodedCredentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-  const body = new URLSearchParams(fields).toString();
+function isSameHash(expected: string, actual: string): boolean {
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(actual, "hex");
+  return expectedBuffer.length === actualBuffer.length
+    && timingSafeEqual(expectedBuffer, actualBuffer);
+}
 
-  return fetch(`${TWILIO_VERIFY_BASE_URL}/${verifyServiceSid}/${endpoint}`, {
+function getResendConfig() {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.RESEND_FROM_EMAIL;
+
+  if (!apiKey || !fromEmail) {
+    throw new Error("Resend email configuration is incomplete");
+  }
+
+  return { apiKey, fromEmail };
+}
+
+async function sendVerificationEmail(email: string, code: string) {
+  const { apiKey, fromEmail } = getResendConfig();
+  return fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Accept: "application/json",
-      Authorization: `Basic ${encodedCredentials}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
     },
-    body,
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [email],
+      subject: "Your ReceiptAI verification code",
+      text: `Your ReceiptAI verification code is ${code}. It expires in 10 minutes. If you did not request this code, you can ignore this email.`,
+      html: `<p>Your ReceiptAI verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:8px">${code}</p><p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>`,
+    }),
   });
 }
 
 router.post("/auth/otp/send", async (req, res) => {
   const parsed = SendOtpBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Enter a valid Indian mobile number." });
+    res.status(400).json({ error: "Enter a valid email address." });
     return;
   }
 
-  const phone = normalizeIndianPhone(parsed.data.phone);
-  if (!phone) {
-    res.status(400).json({ error: "Enter a valid Indian mobile number." });
+  const email = normalizeEmail(parsed.data.email);
+  const existing = challenges.get(email);
+  if (existing && Date.now() - existing.lastSentAt < RESEND_COOLDOWN_MS) {
+    res.status(429).json({ error: "Please wait before requesting another code." });
     return;
   }
+
+  const code = randomInt(100000, 1000000).toString();
+  const salt = randomBytes(16).toString("hex");
+  challenges.set(email, {
+    salt,
+    codeHash: hashCode(salt, code),
+    expiresAt: Date.now() + OTP_EXPIRES_IN_SECONDS * 1000,
+    attempts: 0,
+    lastSentAt: Date.now(),
+  });
 
   try {
-    const response = await callTwilioVerify("Verifications", {
-      To: phone,
-      Channel: "sms",
-    });
-
+    const response = await sendVerificationEmail(email, code);
     if (!response.ok) {
-      const providerBody = await response.text();
+      challenges.delete(email);
       req.log.error(
-        { status: response.status, providerBody },
-        "Twilio rejected OTP delivery",
+        { status: response.status },
+        "Email provider rejected OTP delivery",
       );
-      res.status(502).json({ error: "SMS delivery is temporarily unavailable." });
+      res.status(502).json({ error: "Email delivery is temporarily unavailable." });
       return;
     }
 
@@ -91,8 +111,9 @@ router.post("/auth/otp/send", async (req, res) => {
       }),
     );
   } catch (error) {
-    req.log.error({ err: error }, "Failed to send OTP");
-    res.status(502).json({ error: "SMS delivery is temporarily unavailable." });
+    challenges.delete(email);
+    req.log.error({ err: error }, "Failed to send email OTP");
+    res.status(502).json({ error: "Email delivery is temporarily unavailable." });
   }
 });
 
@@ -103,38 +124,25 @@ router.post("/auth/otp/verify", async (req, res) => {
     return;
   }
 
-  const phone = normalizeIndianPhone(parsed.data.phone);
-  if (!phone) {
-    res.status(400).json({ error: "Enter a valid Indian mobile number." });
+  const email = normalizeEmail(parsed.data.email);
+  const challenge = challenges.get(email);
+  if (!challenge || Date.now() > challenge.expiresAt || challenge.attempts >= MAX_VERIFY_ATTEMPTS) {
+    challenges.delete(email);
+    res.json(VerifyOtpResponse.parse({ verified: false }));
     return;
   }
 
-  try {
-    const response = await callTwilioVerify("VerificationCheck", {
-      To: phone,
-      Code: parsed.data.code,
-    });
+  challenge.attempts += 1;
+  const verified = isSameHash(
+    challenge.codeHash,
+    hashCode(challenge.salt, parsed.data.code),
+  );
 
-    if (!response.ok) {
-      const providerBody = await response.text();
-      req.log.warn(
-        { status: response.status, providerBody },
-        "Twilio rejected OTP verification",
-      );
-      res.json(VerifyOtpResponse.parse({ verified: false }));
-      return;
-    }
-
-    const providerBody = (await response.json()) as { status?: string };
-    res.json(
-      VerifyOtpResponse.parse({
-        verified: providerBody.status === "approved",
-      }),
-    );
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to verify OTP");
-    res.status(502).json({ error: "OTP verification is temporarily unavailable." });
+  if (verified || challenge.attempts >= MAX_VERIFY_ATTEMPTS) {
+    challenges.delete(email);
   }
+
+  res.json(VerifyOtpResponse.parse({ verified }));
 });
 
 export default router;

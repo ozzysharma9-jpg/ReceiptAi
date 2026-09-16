@@ -110,7 +110,7 @@ export function useHealthCheck<
 }
 
 /**
- * @summary Send a phone verification code
+ * @summary Send an email verification code
  */
 export const getSendOtpUrl = () => {
   return `/api/auth/otp/send`;
@@ -173,7 +173,7 @@ export type SendOtpMutationBody = BodyType<OtpSendInput>;
 export type SendOtpMutationError = ErrorType<void>;
 
 /**
- * @summary Send a phone verification code
+ * @summary Send an email verification code
  */
 export const useSendOtp = <
   TError = ErrorType<void>,
@@ -196,7 +196,7 @@ export const useSendOtp = <
 };
 
 /**
- * @summary Verify a phone verification code
+ * @summary Verify an email verification code
  */
 export const getVerifyOtpUrl = () => {
   return `/api/auth/otp/verify`;
@@ -259,7 +259,7 @@ export type VerifyOtpMutationBody = BodyType<OtpVerifyInput>;
 export type VerifyOtpMutationError = ErrorType<void>;
 
 /**
- * @summary Verify a phone verification code
+ * @summary Verify an email verification code
  */
 export const useVerifyOtp = <
   TError = ErrorType<void>,

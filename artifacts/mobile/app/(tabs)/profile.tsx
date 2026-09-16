@@ -133,7 +133,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
 
-          <Text style={[styles.phone, { color: colors.textSecondary }]}>🇮🇳 +91 {user?.phone?.replace(/(\d{5})(\d{5})/, "$1 $2")}</Text>
+          <Text style={[styles.phone, { color: colors.textSecondary }]}>✉️ {user?.email}</Text>
           <Text style={[styles.joinDate, { color: colors.textMuted }]}>Member since {joinDate}</Text>
         </View>
 

@@ -10,11 +10,8 @@ export interface HealthStatus {
 }
 
 export interface OtpSendInput {
-  /**
-   * Indian mobile number in 10-digit or E.164 format
-   * @minLength 10
-   */
-  phone: string;
+  /** Email address to verify */
+  email: string;
 }
 
 export interface OtpSendResponse {
@@ -24,8 +21,7 @@ export interface OtpSendResponse {
 }
 
 export interface OtpVerifyInput {
-  /** @minLength 10 */
-  phone: string;
+  email: string;
   /** @pattern ^[0-9]{6}$ */
   code: string;
 }

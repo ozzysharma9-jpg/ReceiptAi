@@ -7,9 +7,6 @@
  */
 
 export interface OtpSendInput {
-  /**
-   * Indian mobile number in 10-digit or E.164 format
-   * @minLength 10
-   */
-  phone: string;
+  /** Email address to verify */
+  email: string;
 }

@@ -19,16 +19,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 
-const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function PhoneScreen() {
+export default function EmailScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { sendOtp } = useAuth();
 
-  const [digits, setDigits] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -36,8 +36,8 @@ export default function PhoneScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const rawDigits = digits.replace(/\D/g, "").slice(0, 10);
-  const isValid = INDIAN_MOBILE_REGEX.test(rawDigits);
+  const normalizedEmail = email.trim().toLowerCase();
+  const isValid = EMAIL_REGEX.test(normalizedEmail);
 
   const shake = () => {
     Animated.sequence([
@@ -49,25 +49,14 @@ export default function PhoneScreen() {
     ]).start();
   };
 
-  const formatDisplay = (raw: string) => {
-    const d = raw.slice(0, 10);
-    if (d.length <= 5) return d;
-    return `${d.slice(0, 5)} ${d.slice(5)}`;
-  };
-
   const handleChangeText = (t: string) => {
-    const d = t.replace(/\D/g, "").slice(0, 10);
-    setDigits(d);
+    setEmail(t);
     setError("");
   };
 
   const handleSend = async () => {
     if (!isValid) {
-      if (rawDigits.length === 10 && !/^[6-9]/.test(rawDigits)) {
-        setError("Indian mobile numbers must start with 6, 7, 8, or 9");
-      } else if (rawDigits.length < 10) {
-        setError("Please enter a valid 10-digit mobile number");
-      }
+      setError("Please enter a valid email address");
       shake();
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -82,10 +71,10 @@ export default function PhoneScreen() {
     }
 
     try {
-      await sendOtp(rawDigits);
+      await sendOtp(normalizedEmail);
       router.push({
         pathname: "/auth/otp",
-        params: { phone: rawDigits },
+        params: { email: normalizedEmail },
       });
     } catch (e) {
       setError("Could not send OTP. Please try again.");
@@ -121,10 +110,10 @@ export default function PhoneScreen() {
           {/* Form */}
           <View style={styles.form}>
             <Text style={[styles.formTitle, { color: colors.text }]}>
-              Enter your mobile number
+              Enter your email address
             </Text>
             <Text style={[styles.formSubtitle, { color: colors.textSecondary }]}>
-              We'll send a 6-digit OTP to verify your number
+              We'll send a 6-digit OTP to verify your email
             </Text>
 
             <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
@@ -138,19 +127,18 @@ export default function PhoneScreen() {
                   },
                 ]}
               >
-                {/* Indian flag + code */}
-                <View style={[styles.countryCode, { borderRightColor: colors.border }]}>
-                  <Text style={styles.flag}>🇮🇳</Text>
-                  <Text style={[styles.countryCodeText, { color: colors.text }]}>+91</Text>
+                <View style={[styles.emailIcon, { borderRightColor: colors.border }]}>
+                  <Ionicons name="mail-outline" size={20} color={colors.textSecondary} />
                 </View>
                 <TextInput
-                  style={[styles.phoneInput, { color: colors.text }]}
-                  placeholder="98765 43210"
+                  style={[styles.emailInput, { color: colors.text }]}
+                  placeholder="you@example.com"
                   placeholderTextColor={colors.textMuted}
-                  value={formatDisplay(rawDigits)}
+                  value={email}
                   onChangeText={handleChangeText}
-                  keyboardType="phone-pad"
-                  maxLength={11}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   autoFocus
                   returnKeyType="done"
                   onSubmitEditing={handleSend}
@@ -170,7 +158,7 @@ export default function PhoneScreen() {
               </View>
             ) : (
               <Text style={[styles.hint, { color: colors.textMuted }]}>
-                {rawDigits.length}/10 digits
+                We never share your email
               </Text>
             )}
 
@@ -255,28 +243,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     height: 56,
   },
-  countryCode: {
+  emailIcon: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
+    justifyContent: "center",
+    width: 54,
     height: "100%",
     borderRightWidth: StyleSheet.hairlineWidth,
   },
-  flag: {
-    fontSize: 20,
-  },
-  countryCodeText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-  },
-  phoneInput: {
+  emailInput: {
     flex: 1,
     paddingHorizontal: 14,
-    fontSize: 18,
-    fontFamily: "Inter_500Medium",
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
     height: "100%",
-    letterSpacing: 1,
   },
   validIcon: {
     paddingRight: 14,
