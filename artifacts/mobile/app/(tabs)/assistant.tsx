@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +19,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useReceipts } from "@/context/ReceiptsContext";
+import {
+  formatCurrency,
+  getForecast,
+  getRecurringTransactions,
+  getWeekendEffect,
+  monthReceipts,
+  totalFor,
+} from "@/utils/spending";
 
 interface Message {
   id: string;
@@ -28,6 +37,12 @@ interface Message {
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? "";
+const QUICK_PROMPTS = [
+  "Where did I spend the most this month?",
+  "Why did my spending change?",
+  "Find subscriptions I barely use.",
+  "How can I save this month?",
+];
 
 export default function AssistantScreen() {
   const colorScheme = useColorScheme();
@@ -40,7 +55,7 @@ export default function AssistantScreen() {
       id: "welcome",
       role: "assistant",
       content:
-        "Hello! I'm your financial assistant. Ask me anything about your spending, like \"What's my total this month?\" or \"How much did I spend on dining?\"",
+        "I'm your AI Spending Copilot. Ask me where your money went, what changed, or how to save next.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -54,17 +69,20 @@ export default function AssistantScreen() {
   const buildSystemPrompt = () => {
     const now = new Date();
     const totalSpent = receipts.reduce((s, r) => s + r.amount, 0);
-    const thisMonth = receipts.filter((r) => {
-      const d = new Date(r.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-    const monthTotal = thisMonth.reduce((s, r) => s + r.amount, 0);
+    const thisMonth = monthReceipts(receipts, now);
+    const monthTotal = totalFor(thisMonth);
+    const forecast = getForecast(receipts, now);
+    const weekend = getWeekendEffect(thisMonth);
+    const recurring = getRecurringTransactions(receipts)
+      .slice(0, 8)
+      .map((item) => `${item.merchant}: ${formatCurrency(item.monthlyAmount)}/month`)
+      .join(", ");
 
     const summary = receipts
       .slice(0, 30)
       .map(
         (r) =>
-          `${r.date}: ${r.merchant} - $${r.amount.toFixed(2)} (${r.category})`
+          `${r.date}: ${r.merchant} - ${formatCurrency(r.amount, 2)} (${r.category})`
       )
       .join("\n");
 
@@ -72,18 +90,23 @@ export default function AssistantScreen() {
 
 Current data:
 - Total receipts: ${receipts.length}
-- Total all-time spending: $${totalSpent.toFixed(2)}
-- This month's spending: $${monthTotal.toFixed(2)}
+- Total all-time spending: ${formatCurrency(totalSpent, 2)}
+- This month's spending: ${formatCurrency(monthTotal, 2)}
+- Month-end forecast: ${formatCurrency(forecast.expectedMonthEnd, 2)}
+- Monthly budget: ${formatCurrency(25000)}
+- Weekend effect: ${weekend.percentage}% vs weekday average
+- Recurring candidates: ${recurring || "None detected yet"}
 - Current date: ${now.toLocaleDateString()}
 
 Recent transactions (up to 30):
 ${summary || "No transactions yet."}
 
-Be concise, friendly, and data-driven. Format monetary values with $ and 2 decimal places.`;
+Be concise, friendly, and data-driven. Format monetary values with ₹ and 2 decimal places.`;
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (prompt?: string) => {
+    const messageText = (prompt ?? input).trim();
+    if (!messageText || loading) return;
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -91,7 +114,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: messageText,
     };
 
     setMessages((prev) => [userMsg, ...prev]);
@@ -100,13 +123,11 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
 
     try {
       if (!GEMINI_API_KEY) {
-        const monthTotal = receipts
-          .filter((r) => { const d = new Date(r.date); const n = new Date(); return d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear(); })
-          .reduce((s, r) => s + r.amount, 0);
+        const monthTotal = totalFor(monthReceipts(receipts));
         const assistantMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: `The Gemini assistant is not configured yet. Add a valid Gemini API key and restart the app.\n\nYour spending so far:\n• Receipts: ${receipts.length}\n• This month: $${monthTotal.toFixed(2)}`,
+          content: `The Gemini assistant is not configured yet. Add a valid Gemini API key and restart the app.\n\nYour spending so far:\n• Receipts: ${receipts.length}\n• This month: ${formatCurrency(monthTotal)}`,
         };
         setMessages((prev) => [assistantMsg, ...prev]);
         return;
@@ -240,7 +261,7 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
           </View>
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
-              AI Assistant
+              AI Spending Copilot
             </Text>
             <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
               Powered by Gemini
@@ -254,6 +275,24 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
         behavior="padding"
         keyboardVerticalOffset={tabBarHeight}
       >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.promptRow}
+        >
+          {QUICK_PROMPTS.map((prompt) => (
+            <TouchableOpacity
+              key={prompt}
+              onPress={() => sendMessage(prompt)}
+              disabled={loading}
+              style={[styles.promptChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <Text style={[styles.promptText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {prompt}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -310,11 +349,11 @@ Be concise, friendly, and data-driven. Format monetary values with $ and 2 decim
             multiline
             maxLength={500}
             returnKeyType="send"
-            onSubmitEditing={sendMessage}
+            onSubmitEditing={() => void sendMessage()}
             blurOnSubmit={false}
           />
           <TouchableOpacity
-            onPress={sendMessage}
+            onPress={() => void sendMessage()}
             disabled={!input.trim() || loading}
             style={[
               styles.sendBtn,
@@ -366,6 +405,23 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     flexGrow: 1,
     gap: 10,
+  },
+  promptRow: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 2,
+    gap: 8,
+  },
+  promptChip: {
+    maxWidth: 220,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  promptText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
   },
   bubble: {
     maxWidth: "85%",

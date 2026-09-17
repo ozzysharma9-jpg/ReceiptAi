@@ -17,6 +17,7 @@ import Animated, {
 
 import { Category, Receipt } from "@/context/ReceiptsContext";
 import Colors from "@/constants/colors";
+import { formatCurrency } from "@/utils/spending";
 
 const CATEGORY_ICONS: Record<Category, string> = {
   Groceries: "basket",
@@ -103,7 +104,7 @@ export function ReceiptCard({ receipt, onPress }: ReceiptCardProps) {
           </Text>
         </View>
         <Text style={[styles.amount, { color: colors.text }]}>
-          ${receipt.amount.toFixed(2)}
+          {formatCurrency(receipt.amount, 2)}
         </Text>
       </TouchableOpacity>
     </Animated.View>

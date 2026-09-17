@@ -4,6 +4,7 @@ import Svg, { Circle } from "react-native-svg";
 
 import Colors from "@/constants/colors";
 import { Category } from "@/context/ReceiptsContext";
+import { formatCurrency } from "@/utils/spending";
 
 interface Segment {
   category: Category;
@@ -67,7 +68,7 @@ export function BudgetRing({ segments, total }: BudgetRingProps) {
           </Svg>
           <View style={styles.center}>
             <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total</Text>
-            <Text style={[styles.totalAmount, { color: colors.text }]}>${total.toFixed(0)}</Text>
+            <Text style={[styles.totalAmount, { color: colors.text }]}>{formatCurrency(total)}</Text>
           </View>
         </View>
         <View style={styles.legend}>

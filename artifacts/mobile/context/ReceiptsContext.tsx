@@ -28,24 +28,39 @@ export interface Receipt {
   createdAt: number;
 }
 
+export interface FinancialGoal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  savedAmount: number;
+  deadline?: string;
+}
+
 interface ReceiptsContextType {
   receipts: Receipt[];
+  goals: FinancialGoal[];
   addReceipt: (receipt: Omit<Receipt, "id" | "createdAt">) => Promise<void>;
   updateReceipt: (id: string, updates: Partial<Receipt>) => Promise<void>;
   deleteReceipt: (id: string) => Promise<void>;
+  addGoal: (goal: Omit<FinancialGoal, "id">) => Promise<void>;
+  updateGoal: (id: string, updates: Partial<FinancialGoal>) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
   loading: boolean;
 }
 
 const ReceiptsContext = createContext<ReceiptsContextType | null>(null);
 
 const STORAGE_KEY = "receiptai_receipts";
+const GOALS_STORAGE_KEY = "receiptai_goals";
 
 export function ReceiptsProvider({ children }: { children: React.ReactNode }) {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadReceipts();
+    loadGoals();
   }, []);
 
   const loadReceipts = async () => {
@@ -63,8 +78,21 @@ export function ReceiptsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loadGoals = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(GOALS_STORAGE_KEY);
+      if (stored) setGoals(JSON.parse(stored));
+    } catch (e) {
+      console.error("Failed to load financial goals", e);
+    }
+  };
+
   const saveReceipts = async (updated: Receipt[]) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const saveGoals = async (updated: FinancialGoal[]) => {
+    await AsyncStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(updated));
   };
 
   const addReceipt = useCallback(
@@ -101,9 +129,40 @@ export function ReceiptsProvider({ children }: { children: React.ReactNode }) {
     [receipts]
   );
 
+  const addGoal = useCallback(async (goal: Omit<FinancialGoal, "id">) => {
+    const updated = [
+      { ...goal, id: Date.now().toString() + Math.random().toString(36).slice(2, 8) },
+      ...goals,
+    ];
+    setGoals(updated);
+    await saveGoals(updated);
+  }, [goals]);
+
+  const updateGoal = useCallback(async (id: string, updates: Partial<FinancialGoal>) => {
+    const updated = goals.map((goal) => goal.id === id ? { ...goal, ...updates } : goal);
+    setGoals(updated);
+    await saveGoals(updated);
+  }, [goals]);
+
+  const deleteGoal = useCallback(async (id: string) => {
+    const updated = goals.filter((goal) => goal.id !== id);
+    setGoals(updated);
+    await saveGoals(updated);
+  }, [goals]);
+
   return (
     <ReceiptsContext.Provider
-      value={{ receipts, addReceipt, updateReceipt, deleteReceipt, loading }}
+      value={{
+        receipts,
+        goals,
+        addReceipt,
+        updateReceipt,
+        deleteReceipt,
+        addGoal,
+        updateGoal,
+        deleteGoal,
+        loading,
+      }}
     >
       {children}
     </ReceiptsContext.Provider>

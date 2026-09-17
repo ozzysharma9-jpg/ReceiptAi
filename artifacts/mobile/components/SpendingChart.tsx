@@ -9,6 +9,7 @@ import {
 
 import Colors from "@/constants/colors";
 import { Category } from "@/context/ReceiptsContext";
+import { formatCurrency } from "@/utils/spending";
 
 interface BarData {
   label: string;
@@ -46,7 +47,7 @@ function AnimatedBar({
   return (
     <View style={styles.barWrapper}>
       <Text style={[styles.barValue, { color: colors.text }]}>
-        ${item.value.toFixed(0)}
+        {formatCurrency(item.value)}
       </Text>
       <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
         <Animated.View
