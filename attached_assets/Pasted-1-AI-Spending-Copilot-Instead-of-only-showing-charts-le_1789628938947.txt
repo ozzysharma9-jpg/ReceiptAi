@@ -1,0 +1,129 @@
+1. 🤖 AI Spending Copilot
+
+Instead of only showing charts, let users ask:
+
+"Where did I spend the most this month?"
+"Can I afford ₹8,000 this weekend?"
+"Why did my expenses increase this month?"
+"Find subscriptions I barely use."
+"How much can I save if I reduce food spending by 15%?"
+
+Use an LLM to turn transaction data into useful explanations.
+
+2. 📸 Scan receipts → automatic expense
+
+Upload a receipt/photo:
+
+Receipt → OCR → AI extraction → transaction
+
+Example:
+
+DOMINO'S
+₹849
+12 Sept 2026
+Food
+
+Automatically categorize it and let the user confirm.
+
+3. 🔮 "Future Wallet" prediction
+
+Give the app a prediction screen:
+
+September Spending
+
+₹18,420 spent
+₹6,580 remaining
+
+AI Forecast
+━━━━━━━━━━━━━━━━━━
+Expected month-end: ₹27,300
+
+⚠️ At your current rate,
+you may exceed your ₹25,000
+budget by ₹2,300.
+
+This is much more interesting than a normal pie chart.
+
+4. 🧠 Personal Spending Patterns
+
+Detect patterns such as:
+
+Weekend Effect
+
+You spend 38% more on weekends than weekdays.
+
+or:
+
+Food Spike
+
+Your food spending increased 24% compared with August.
+
+This gives the project an actual analytics/AI component.
+
+5. 💳 Subscription Detector
+
+Let users add recurring transactions and automatically identify:
+
+🔄 Recurring Payments
+
+Netflix       ₹649/month
+Spotify       ₹119/month
+AWS           ₹1,240/month
+Canva         ₹499/month
+
+Total recurring:
+₹2,507/month
+
+Then show:
+
+"Your recurring expenses consume 10% of your monthly spending."
+
+6. 🎯 Financial Goals
+
+Instead of just "budget ₹20,000", allow goals:
+
+🎯 MacBook Fund
+
+₹42,000 / ₹100,000
+████████░░░░░ 42%
+
+At your current saving rate:
+Estimated completion → March 2027
+7. 🏆 Make the UI feel like a product
+
+I'd use a modern dashboard rather than the traditional:
+
+Navbar → Pie Chart → Table
+
+Something like:
+
+Good morning, Mehul 👋
+
+Your Financial Pulse
+━━━━━━━━━━━━━━━━━━━━
+
+₹24,680
+September spending
+
+↓ 8.4% vs August
+
+┌─────────────┐
+│ AI INSIGHT  │
+│             │
+│ You're on   │
+│ track to    │
+│ save ₹7,200 │
+└─────────────┘
+
+Spending Timeline
+╭──────────────────╮
+│      ╭─╮         │
+│  ╭───╯ ╰──╮      │
+│──╯        ╰───   │
+╰──────────────────╯
+
+Top Categories
+
+🍔 Food       ₹6,240
+🚗 Travel     ₹3,820
+🛍 Shopping   ₹2,910
